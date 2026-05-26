@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OMEN Hub
+Comment=GPU, fan, and RGB control for HP OMEN laptops
+Exec=omen-hub
+Icon=preferences-system
+Categories=Utility;System;Settings;
+Terminal=false
+StartupNotify=true

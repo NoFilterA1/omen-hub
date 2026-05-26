@@ -1,0 +1,8 @@
+# Allow any user to write RGB zones (world-writable on device add).
+# Applied by setup.sh — reload with: udevadm control --reload-rules && udevadm trigger --subsystem-match=platform
+
+SUBSYSTEM=="platform", DRIVER=="hp-wmi", \
+  RUN+="/bin/chmod 0666 /sys/devices/platform/hp-wmi/rgb_zones/zone00", \
+  RUN+="/bin/chmod 0666 /sys/devices/platform/hp-wmi/rgb_zones/zone01", \
+  RUN+="/bin/chmod 0666 /sys/devices/platform/hp-wmi/rgb_zones/zone02", \
+  RUN+="/bin/chmod 0666 /sys/devices/platform/hp-wmi/rgb_zones/zone03"

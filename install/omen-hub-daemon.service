@@ -1,0 +1,16 @@
+[Unit]
+Description=OMEN Hub Fan Daemon
+After=multi-user.target
+ConditionPathExists=/sys/kernel/debug/ec/ec0/io
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -u INSTALL_PATH/daemon/fand.py
+Restart=always
+RestartSec=5
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,70 @@
+# OMEN Hub configuration
+# All values here are actually read by the daemon and GUI — not decorations.
+
+[service]
+# Fan polling interval in seconds. Lower = more responsive, more CPU.
+poll_interval = 1.0
+
+# Unix socket path for IPC between daemon and GUI/CLI
+socket_path = "/tmp/omen-hub.sock"
+
+# ---------------------------------------------------------------------------
+# Fan curves per mode.
+# temp_curve and speed_curve must have the same length.
+# speed_curve values are percentages (0–100).
+# idle_speed: used when temp is below the first threshold.
+# override_temp: silent mode only — above this temp, fall back to balanced.
+# ---------------------------------------------------------------------------
+
+[fan.modes.silent]
+temp_curve   = [66, 77, 83, 89, 95]
+speed_curve  = [10, 19, 42, 71, 89]
+idle_speed   = 0
+override_temp = 88
+
+[fan.modes.balanced]
+temp_curve   = [50, 60, 70, 80, 87, 93]
+speed_curve  = [20, 40, 60, 70, 85, 100]
+idle_speed   = 0
+
+[fan.modes.performance]
+temp_curve   = [29, 35, 45, 55, 62, 68, 75]
+speed_curve  = [13, 30, 50, 75, 90, 97, 100]
+idle_speed   = 0
+
+# ---------------------------------------------------------------------------
+# Power profiles per mode.
+# gpu_tdp_w: nvidia-smi power limit in watts (null = don't touch).
+# gpu_freq_lock: [min_mhz, max_mhz] clock lock (null = reset/auto).
+# ---------------------------------------------------------------------------
+
+[power.profiles.silent]
+pp_profile    = "power-saver"
+epp           = "power"
+gpu_tdp_w     = 30
+gpu_freq_lock = []
+
+[power.profiles.balanced]
+pp_profile    = "balanced"
+epp           = "balance_power"
+gpu_tdp_w     = 80
+gpu_freq_lock = []
+
+[power.profiles.performance]
+pp_profile    = "performance"
+epp           = "performance"
+gpu_tdp_w     = 115
+gpu_freq_lock = [2100, 2500]
+
+# ---------------------------------------------------------------------------
+# RGB defaults
+# on_mode_change: automatically set keyboard color when switching modes
+# ---------------------------------------------------------------------------
+
+[rgb]
+on_mode_change = true
+
+[rgb.mode_colors]
+silent      = "63cbff"
+balanced    = "f9ff41"
+performance = "ff5202"
