@@ -11,7 +11,7 @@ A modern, lightweight GUI replacement for HP OMEN Gaming Hub on Linux (Arch/Cach
 - 🎛️ **Fan Curves** — Balanced/Silent/Performance presets, live editing
 - ⌨️ **Keyboard RGB** — Per-key backlight preview with mode-specific colors
 - 🌙 **Dark/Light Theme** — Live switching, accent color customization
-- 🌍 **Multilingual** — English, Русский, extensible
+- 🌍 **Multilingual** — English, Dutch, Русский
 - 📦 **Minimal** — PyQt6, no external daemons required
 
 ## Screenshots
