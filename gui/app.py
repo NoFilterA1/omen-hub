@@ -176,6 +176,7 @@ class MainWindow(QMainWindow):
         self._settings.accent_changed.connect(self._on_accent_changed)
         self._settings.theme_changed.connect(self._schedule_reload)
         self._settings.language_changed.connect(self._schedule_reload)
+        self._settings.fan_unit_changed.connect(self._on_fan_unit_changed)
 
         self._stack.addWidget(self._info)
         self._stack.addWidget(self._fans)
@@ -218,6 +219,9 @@ class MainWindow(QMainWindow):
 
     def _reload_ui(self):
         page = getattr(self, "_page_key", "settings")
+        # Stop any running threads before rebuilding
+        if hasattr(self, "_keyboard") and self._keyboard:
+            self._keyboard._stop_thread()
         self.setStyleSheet(theme.stylesheet())
         NavTab._accent = self._settings_accent()
         self._build_ui()
@@ -295,6 +299,10 @@ class MainWindow(QMainWindow):
         )
         for btn in self._nav_buttons.values():
             btn._refresh()
+
+    def _on_fan_unit_changed(self) -> None:
+        self._info._chart.update()
+        self._fans._editor.update()
 
     def _on_mode_colors_changed(self) -> None:
         self._info.refresh_mode_colors()

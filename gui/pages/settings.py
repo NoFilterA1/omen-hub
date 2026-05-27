@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import core.rgb as _rgb
 from core import settings as _settings
-from gui.i18n import t as _t
+from gui.i18n import t as _t, available as available_languages
 from gui.widgets import ColorPickerDialog
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config.toml"
@@ -110,6 +110,7 @@ class SettingsPage(QWidget):
     accent_changed = pyqtSignal(str)  # hex without #
     theme_changed = pyqtSignal()
     language_changed = pyqtSignal()
+    fan_unit_changed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -145,6 +146,12 @@ class SettingsPage(QWidget):
         temp_row.addWidget(self._temp_f)
         ap_layout.addLayout(temp_row)
 
+        self._fan_unit_cb = self._combo_row(
+            ap_layout, _t("fan_unit"),
+            [(_t("fan_unit_pct"), "pct"), (_t("fan_unit_rpm"), "rpm")],
+            _settings.get_fan_unit(), self._on_fan_unit,
+        )
+
         self._accent_row = _ColorRow("accent", _t("accent_color"), _settings.get_accent())
         self._accent_row.picked.connect(self._on_accent_picked)
         ap_layout.addWidget(self._accent_row)
@@ -156,7 +163,7 @@ class SettingsPage(QWidget):
         )
         self._lang_cb = self._combo_row(
             ap_layout, _t("language"),
-            [("English", "en"), ("Русский", "ru")],
+            available_languages(),
             _settings.get_language(), self._on_language,
         )
 
@@ -242,6 +249,10 @@ class SettingsPage(QWidget):
     def _on_language(self, value: str) -> None:
         _settings.set_language(value)
         self.language_changed.emit()
+
+    def _on_fan_unit(self, value: str) -> None:
+        _settings.set_fan_unit(value)
+        self.fan_unit_changed.emit()
 
     def _on_accent_picked(self, _mode: str, hex_color: str) -> None:
         _settings.set_accent(hex_color)

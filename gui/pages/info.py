@@ -7,7 +7,7 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QRectF, QPointF
 from PyQt6.QtGui import QPainter, QPen
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton, QSplitter,
 )
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -154,10 +154,10 @@ class InfoPage(QWidget):
 
     def _build(self):
         root = QVBoxLayout(self)
-        root.setSpacing(8)
+        root.setSpacing(6)
         root.setContentsMargins(0, 0, 0, 0)
 
-        # Sensors
+        # ── Sensors card ──────────────────────────────────────────────────
         sc = _card()
         sc_v = QVBoxLayout(sc)
         sc_v.setContentsMargins(12, 10, 12, 8)
@@ -201,21 +201,21 @@ class InfoPage(QWidget):
             sl.addWidget(_mux_block(True, self._mux_hybrid))
         sl.addStretch(1)
         sc_v.addLayout(sl)
-        root.addWidget(sc)
 
-        # MUX switch feedback — its own band so it never overlaps the gauges
+        # ── MUX hint (centered, zero-height when hidden) ──────────────────
         self._mux_hint = QLabel("")
         self._mux_hint.setObjectName("note")
         self._mux_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._mux_hint.setVisible(False)
-        hint_row = QHBoxLayout()
-        hint_row.setContentsMargins(0, 0, 0, 0)
-        hint_row.addStretch(1)
-        hint_row.addWidget(self._mux_hint)
-        hint_row.addStretch(1)
-        root.addLayout(hint_row)
+        _hint_w = QWidget()
+        _hint_w.setStyleSheet("background: transparent;")
+        _hint_wl = QHBoxLayout(_hint_w)
+        _hint_wl.setContentsMargins(0, 0, 0, 0)
+        _hint_wl.addStretch(1)
+        _hint_wl.addWidget(self._mux_hint)
+        _hint_wl.addStretch(1)
 
-        # Mode
+        # ── Mode card ─────────────────────────────────────────────────────
         mc = _card()
         ml = QVBoxLayout(mc)
         ml.setContentsMargins(12, 10, 12, 10)
@@ -235,10 +235,10 @@ class InfoPage(QWidget):
         ml.addLayout(row)
         self._desc = QLabel(_t("desc_balanced"))
         self._desc.setObjectName("valdim")
+        self._desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         ml.addWidget(self._desc)
-        root.addWidget(mc)
 
-        # System load
+        # ── System load card ──────────────────────────────────────────────
         lc = _card()
         ll = QVBoxLayout(lc)
         ll.setContentsMargins(14, 10, 14, 10)
@@ -252,9 +252,8 @@ class InfoPage(QWidget):
         ll.addWidget(self._cpu_bar)
         ll.addWidget(self._gpu_bar)
         ll.addWidget(self._ram_bar)
-        root.addWidget(lc)
 
-        # Fan curve
+        # ── Fan curve card ────────────────────────────────────────────────
         fc = _card()
         fl = QVBoxLayout(fc)
         fl.setContentsMargins(14, 10, 14, 10)
@@ -272,14 +271,34 @@ class InfoPage(QWidget):
         fhdr.addWidget(self._fan_ctrl_lbl)
         fl.addLayout(fhdr)
         self._chart = FanCurveChart()
-        self._chart.setMaximumHeight(150)
-        fl.addWidget(self._chart)
+        self._chart.setMinimumHeight(100)
+        fl.addWidget(self._chart, 1)
         self._fan_status_lbl = QLabel("")
         self._fan_status_lbl.setObjectName("note")
         self._fan_status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         fl.addWidget(self._fan_status_lbl)
-        root.addWidget(fc)
-        root.addStretch(1)
+
+        # ── Splitter: top section (fixed) / fan curve (expandable) ───────
+        top = QWidget()
+        top.setStyleSheet("background: transparent;")
+        top_l = QVBoxLayout(top)
+        top_l.setContentsMargins(0, 0, 0, 0)
+        top_l.setSpacing(6)
+        top_l.addWidget(sc)
+        top_l.addWidget(_hint_w)
+        top_l.addWidget(mc)
+        top_l.addWidget(lc)
+
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.setChildrenCollapsible(False)
+        splitter.addWidget(top)
+        splitter.addWidget(fc)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setStyleSheet(
+            "QSplitter::handle { background: transparent; height: 6px; }"
+        )
+        root.addWidget(splitter, 1)
 
         self._set_curve("balanced")
 

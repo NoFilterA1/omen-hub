@@ -17,6 +17,8 @@ _DEFAULTS: dict = {
         "accent_color": "5566ff",
         "theme":        "dark",
         "language":     "en",
+        "fan_unit":     "pct",
+        "fan_max_rpm":  5500,
     },
 }
 
@@ -25,6 +27,8 @@ _temp_unit_f: bool = False
 _accent_color: str = "5566ff"
 _theme: str = "dark"
 _language: str = "en"
+_fan_unit: str = "pct"
+_fan_max_rpm: int = 5500
 
 
 def use_fahrenheit() -> bool:
@@ -65,6 +69,26 @@ def set_language(code: str) -> None:
     global _language
     _language = code
     save_section("appearance", {"language": code})
+
+
+def get_fan_unit() -> str:
+    return _fan_unit
+
+
+def set_fan_unit(unit: str) -> None:
+    global _fan_unit
+    _fan_unit = unit if unit in ("pct", "rpm") else "pct"
+    save_section("appearance", {"fan_unit": _fan_unit})
+
+
+def get_fan_max_rpm() -> int:
+    return _fan_max_rpm
+
+
+def set_fan_max_rpm(rpm: int) -> None:
+    global _fan_max_rpm
+    _fan_max_rpm = max(1000, min(10000, rpm))
+    save_section("appearance", {"fan_max_rpm": _fan_max_rpm})
 
 
 def load() -> dict:
@@ -112,3 +136,5 @@ _temp_unit_f  = _boot.get("appearance", {}).get("temp_unit", "C") == "F"
 _accent_color = _boot.get("appearance", {}).get("accent_color", "5566ff")
 _theme        = _boot.get("appearance", {}).get("theme", "dark")
 _language     = _boot.get("appearance", {}).get("language", "en")
+_fan_unit     = _boot.get("appearance", {}).get("fan_unit", "pct")
+_fan_max_rpm  = _boot.get("appearance", {}).get("fan_max_rpm", 5500)

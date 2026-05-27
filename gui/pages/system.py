@@ -6,14 +6,16 @@ import sys
 import threading
 from pathlib import Path
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt, QTimer, QPointF
+from PyQt6.QtGui import QPainter, QPen, QColor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout, QPushButton,
-    QMessageBox
+    QMessageBox, QScrollArea, QSizePolicy
 )
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from core.sensors import read_system_info
+from core.sensors import (read_system_info, read_cpu_temp, read_gpu_temp,
+                           read_cpu_load, read_ram_usage)
 from gui.i18n import t as _t
 import gui.theme as _theme
 
@@ -131,6 +133,72 @@ def _gpu_btn_style(active: bool) -> str:
     )
 
 
+class _SparkLine(QWidget):
+    """Live sparkline row: label | mini line chart | current value."""
+    _MAX = 60
+
+    def __init__(self, label: str, color: str, unit: str = "", parent=None):
+        super().__init__(parent)
+        self._label = label
+        self._color = QColor(color)
+        self._unit  = unit
+        self._data: list[float] = []
+        self._cur   = 0.0
+        self.setFixedHeight(44)
+
+    def push(self, value: float) -> None:
+        self._cur = value
+        self._data.append(value)
+        if len(self._data) > self._MAX:
+            self._data.pop(0)
+        self.update()
+
+    def paintEvent(self, _event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        W, H = self.width(), self.height()
+        PAD_L, PAD_R, PV = 72, 52, 5
+        cw, ch = W - PAD_L - PAD_R, H - PV * 2
+
+        # label
+        p.setPen(QColor("#888888"))
+        p.drawText(0, 0, PAD_L - 6, H,
+                   int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter),
+                   self._label)
+
+        # chart background
+        bg = QColor(self._color)
+        bg.setAlpha(18)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(bg)
+        p.drawRoundedRect(PAD_L, PV, cw, ch, 3, 3)
+
+        # sparkline
+        data = self._data
+        if len(data) >= 2:
+            hi  = max(data) or 1.0
+            lo  = min(data)
+            rng = (hi - lo) or 1.0
+            pts = [
+                QPointF(PAD_L + i / (len(data) - 1) * cw,
+                        PV + ch * (1.0 - (v - lo) / rng))
+                for i, v in enumerate(data)
+            ]
+            p.setPen(QPen(self._color, 1.5))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            for i in range(len(pts) - 1):
+                p.drawLine(pts[i], pts[i + 1])
+
+        # current value
+        vc = QColor(self._color)
+        vc.setAlpha(220)
+        p.setPen(vc)
+        p.drawText(W - PAD_R + 4, 0, PAD_R - 4, H,
+                   int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+                   f"{self._cur:.0f}{self._unit}")
+        p.end()
+
+
 class SystemPage(QWidget):
     _gpu_result = pyqtSignal(str, bool, str)  # mode, ok, err
 
@@ -140,18 +208,40 @@ class SystemPage(QWidget):
         self._gpu_mode = _supergfxctl_mode()
         self._gpu_result.connect(self._on_gpu_switch_done)
         self._build()
+        t = QTimer(self)
+        t.setInterval(2000)
+        t.timeout.connect(self._poll)
+        t.start()
+        QTimer.singleShot(0, self._poll)
 
     def _build(self):
-        root = QVBoxLayout(self)
-        root.setSpacing(8)
-        root.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; }")
+        inner = QWidget()
+        inner_l = QVBoxLayout(inner)
+        inner_l.setSpacing(0)
+        inner_l.setContentsMargins(0, 0, 0, 0)
+        scroll.setWidget(inner)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        outer.addWidget(scroll)
 
-        # Hardware card
+        # Two-column layout fills the full viewport
+        cols = QWidget()
+        cols.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        cols_l = QHBoxLayout(cols)
+        cols_l.setContentsMargins(0, 0, 0, 0)
+        cols_l.setSpacing(8)
+
+        # ── Left column: Hardware ─────────────────────────────────────────
         hw_card, hw_layout = _card(_t("hw_hardware"))
+        hw_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         grid = QGridLayout()
         grid.setSpacing(7)
         grid.setColumnStretch(1, 1)
-
         hw_rows = [
             (_t("hw_product"),  self._info.get("product", "—")),
             (_t("hw_cpu"),      self._info.get("cpu", "—")),
@@ -163,14 +253,36 @@ class SystemPage(QWidget):
         ]
         for i, (lbl, val) in enumerate(hw_rows):
             _row(grid, i, lbl, val)
-
         hw_layout.addLayout(grid)
-        root.addWidget(hw_card)
+
+        _sep = QFrame()
+        _sep.setFrameShape(QFrame.Shape.HLine)
+        _sep.setStyleSheet(f"color:{_theme.color('border')};margin-top:4px;")
+        hw_layout.addWidget(_sep)
+
+        self._sparklines: dict[str, _SparkLine] = {}
+        for _key, _lbl, _col, _unit in [
+            ("cpu_temp", "CPU Temp", "#e8744a", "°"),
+            ("gpu_temp", "GPU Temp", "#7ab6d4", "°"),
+            ("cpu_load", "CPU Load", "#6c8fb0", "%"),
+            ("ram",      "RAM",      "#c2945a", "%"),
+        ]:
+            _sl = _SparkLine(_lbl, _col, _unit)
+            self._sparklines[_key] = _sl
+            hw_layout.addWidget(_sl)
+
+        hw_layout.addStretch()
+
+        # ── Right column: GPU Mode + Software ─────────────────────────────
+        right = QWidget()
+        right.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        right_l = QVBoxLayout(right)
+        right_l.setContentsMargins(0, 0, 0, 0)
+        right_l.setSpacing(8)
 
         # GPU Mode card (only when supergfxctl is available)
         if self._gpu_mode is not None:
             gm_card, gm_layout = _card(_t("gpu_mode"))
-
             cur_row = QHBoxLayout()
             cur_row.setSpacing(6)
             self._gpu_mode_lbl = QLabel(f"{_t('gpu_active')}  {self._gpu_mode}")
@@ -199,19 +311,17 @@ class SystemPage(QWidget):
             warn = QLabel(_t("gpu_logout_warn"))
             warn.setObjectName("note")
             gm_layout.addWidget(warn)
-
             self._gpu_status = QLabel("")
             self._gpu_status.setObjectName("note")
             gm_layout.addWidget(self._gpu_status)
+            right_l.addWidget(gm_card)
 
-            root.addWidget(gm_card)
-
-        # Software card
+        # Software card — expands to fill remaining right-column height
         sw_card, sw_layout = _card(_t("hw_software"))
+        sw_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         sgrid = QGridLayout()
         sgrid.setSpacing(7)
         sgrid.setColumnStretch(1, 1)
-
         sw_rows = [
             (_t("hw_os"),     self._info.get("os", "—")),
             (_t("hw_kernel"), self._info.get("kernel", "—")),
@@ -219,11 +329,13 @@ class SystemPage(QWidget):
         ]
         for i, (lbl, val) in enumerate(sw_rows):
             _row(sgrid, i, lbl, val)
-
         sw_layout.addLayout(sgrid)
-        root.addWidget(sw_card)
+        sw_layout.addStretch()
+        right_l.addWidget(sw_card, 1)
 
-        root.addStretch()
+        cols_l.addWidget(hw_card, 3)
+        cols_l.addWidget(right, 2)
+        inner_l.addWidget(cols, 1)
 
     def _switch_gpu(self, mode: str) -> None:
         msg = QMessageBox(self)
@@ -264,3 +376,12 @@ class SystemPage(QWidget):
             active = self._gpu_mode == m
             btn.setEnabled(not active)
             btn.setStyleSheet(_gpu_btn_style(active))
+
+    def _poll(self) -> None:
+        if not hasattr(self, "_sparklines"):
+            return
+        self._sparklines["cpu_temp"].push(read_cpu_temp())
+        self._sparklines["gpu_temp"].push(read_gpu_temp())
+        self._sparklines["cpu_load"].push(read_cpu_load())
+        used, total = read_ram_usage()
+        self._sparklines["ram"].push(int(used / total * 100) if total else 0)

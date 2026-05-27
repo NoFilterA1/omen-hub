@@ -6,7 +6,7 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QPushButton, QSlider
+    QPushButton, QSlider, QSplitter
 )
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -118,9 +118,12 @@ class FansPage(QWidget):
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(hint)
 
-        root.addWidget(curve_card)
+        # ── Bottom controls ───────────────────────────────────────────────
+        bottom = QWidget()
+        bl = QVBoxLayout(bottom)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(8)
 
-        # ── Idle speed card ───────────────────────────────────────────────
         idle_card = QFrame()
         idle_card.setObjectName("card")
         il = QHBoxLayout(idle_card)
@@ -142,31 +145,36 @@ class FansPage(QWidget):
         self._idle_val.setMinimumWidth(28)
         il.addWidget(self._idle_val)
         il.addStretch()
+        bl.addWidget(idle_card)
 
-        root.addWidget(idle_card)
-
-        # ── Action row ────────────────────────────────────────────────────
         act_row = QHBoxLayout()
         act_row.setSpacing(8)
-
         btn_reset = QPushButton(_t("reset_defaults"))
         btn_reset.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_reset.clicked.connect(self._reset)
         act_row.addWidget(btn_reset)
-
         btn_save = QPushButton(_t("save"))
         btn_save.setObjectName("primary")
         btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_save.clicked.connect(self._save)
         act_row.addWidget(btn_save)
-
         self._status_lbl = QLabel("")
         self._status_lbl.setObjectName("val")
         act_row.addWidget(self._status_lbl)
         act_row.addStretch()
-        root.addLayout(act_row)
+        bl.addLayout(act_row)
 
-        root.addStretch()
+        # ── Splitter: chart (top) / controls (bottom) ────────────────────
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.setChildrenCollapsible(False)
+        splitter.addWidget(curve_card)
+        splitter.addWidget(bottom)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 1)
+        splitter.setStyleSheet(
+            "QSplitter::handle { background: transparent; height: 6px; }"
+        )
+        root.addWidget(splitter, 1)
         self._switch("balanced")
 
     # ── Internal ─────────────────────────────────────────────────────────────

@@ -328,7 +328,12 @@ class FanCurveChart(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
 
-        PAD_L, PAD_R, PAD_T, PAD_B = 30, 10, 6, 20
+        from core.settings import get_fan_unit, get_fan_max_rpm
+        use_rpm = get_fan_unit() == "rpm"
+        max_rpm = get_fan_max_rpm()
+
+        PAD_L = 42 if use_rpm else 30
+        PAD_R, PAD_T, PAD_B = 10, 6, 20
         cw = w - PAD_L - PAD_R
         ch = h - PAD_T - PAD_B
         T_MIN, T_MAX = 20, 100
@@ -338,27 +343,32 @@ class FanCurveChart(QWidget):
             y = PAD_T + ch - pct / 100 * ch
             return QPointF(x, y)
 
+        def y_label(pct: float) -> str:
+            if use_rpm:
+                v = int(pct / 100 * max_rpm)
+                return f"{v//1000}k" if v >= 1000 else str(v)
+            return str(int(pct))
+
         # Grid
         p.setPen(QPen(QColor(36, 36, 42), 1))
         for t in (40, 60, 80):
             pt = px(t, 0)
             p.drawLine(QPointF(pt.x(), PAD_T), QPointF(pt.x(), PAD_T + ch))
-        for pct in (25, 50, 75):
+        for pct in (20, 40, 60, 80):
             pt = px(T_MIN, pct)
             p.drawLine(QPointF(PAD_L, pt.y()), QPointF(PAD_L + cw, pt.y()))
 
-        # Axis labels
         p.setPen(QColor(70, 70, 80))
         p.setFont(QFont("Sans Serif", 7))
         for t in (40, 60, 80):
             pt = px(t, 0)
             p.drawText(QRectF(pt.x() - 14, PAD_T + ch + 4, 28, 14),
                        Qt.AlignmentFlag.AlignCenter, f"{t}°")
-        for pct in (0, 50, 100):
+        for pct in (0, 20, 40, 60, 80, 100):
             pt = px(T_MIN, pct)
             p.drawText(QRectF(0, pt.y() - 7, PAD_L - 4, 14),
                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                       str(pct))
+                       y_label(pct))
 
         # Build extended curve: flat idle from T_MIN to first point, flat max after last
         ext = [(T_MIN, self._idle_speed)] + self._curve_pts + \
@@ -408,7 +418,7 @@ class FanCurveEditor(QWidget):
 
     curve_changed = pyqtSignal(list, list)  # temp_curve, speed_curve (int lists)
 
-    PAD_L, PAD_R, PAD_T, PAD_B = 35, 15, 10, 28
+    PAD_L, PAD_R, PAD_T, PAD_B = 42, 15, 10, 28
     T_MIN, T_MAX = 20, 100
     HIT_R = 12
 
@@ -532,26 +542,35 @@ class FanCurveEditor(QWidget):
         ch = h - self.PAD_T - self.PAD_B
 
         # Grid
+        from core.settings import get_fan_unit, get_fan_max_rpm
+        use_rpm = get_fan_unit() == "rpm"
+        max_rpm = get_fan_max_rpm()
+
+        def y_label(pct: float) -> str:
+            if use_rpm:
+                v = int(pct / 100 * max_rpm)
+                return f"{v//1000}k" if v >= 1000 else str(v)
+            return str(int(pct))
+
         p.setPen(QPen(QColor(36, 36, 42), 1))
         for t in (40, 60, 80):
             pt = self._px(t, 0)
             p.drawLine(QPointF(pt.x(), self.PAD_T), QPointF(pt.x(), self.PAD_T + ch))
-        for pct in (25, 50, 75):
+        for pct in (20, 40, 60, 80):
             pt = self._px(self.T_MIN, pct)
             p.drawLine(QPointF(self.PAD_L, pt.y()), QPointF(self.PAD_L + cw, pt.y()))
 
-        # Axis labels
         p.setPen(QColor(70, 70, 80))
         p.setFont(QFont("Sans Serif", 7))
         for t in (40, 60, 80):
             pt = self._px(t, 0)
             p.drawText(QRectF(pt.x() - 14, self.PAD_T + ch + 4, 28, 16),
                        Qt.AlignmentFlag.AlignCenter, f"{t}°")
-        for pct in (0, 50, 100):
+        for pct in (0, 20, 40, 60, 80, 100):
             pt = self._px(self.T_MIN, pct)
             p.drawText(QRectF(0, pt.y() - 7, self.PAD_L - 4, 14),
                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                       str(pct))
+                       y_label(pct))
 
         # Extended curve (idle flat + points + max extension)
         ext = ([(self.T_MIN, self._idle_speed)]
@@ -869,6 +888,52 @@ class _HueSlider(QWidget):
         self.update()
 
 
+class _SatSlider(QWidget):
+    """Horizontal saturation slider: grey → full hue color."""
+    changed = pyqtSignal(int)  # sat 0-255
+
+    def __init__(self, hue: int, sat: int, parent=None):
+        super().__init__(parent)
+        self._hue = hue
+        self._sat = sat
+        self.setFixedHeight(16)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def set_hue(self, hue: int) -> None:
+        self._hue = hue
+        self.update()
+
+    def set_sat(self, sat: int) -> None:
+        self._sat = sat
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        g = QLinearGradient(0, 0, w, 0)
+        g.setColorAt(0, QColor(200, 200, 200))
+        g.setColorAt(1, QColor.fromHsv(self._hue, 255, 255))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(g)
+        p.drawRoundedRect(QRectF(0, 0, w, h), 4, 4)
+        cx = int(self._sat / 255 * w)
+        p.setBrush(QColor(255, 255, 255))
+        p.setPen(QPen(QColor(60, 60, 60), 1))
+        p.drawRoundedRect(QRectF(cx - 3, 1, 6, h - 2), 2, 2)
+        p.end()
+
+    def mousePressEvent(self, ev):   self._pick(ev.position())
+    def mouseMoveEvent(self, ev):    self._pick(ev.position())
+
+    def _pick(self, pos) -> None:
+        x = max(0.0, min(pos.x(), self.width() - 1))
+        self._sat = int(x / self.width() * 255)
+        self.changed.emit(self._sat)
+        self.update()
+
+
 class InlineColorPicker(QWidget):
     """Embeddable color picker: S×V square + hue slider + hex input. No dialog."""
 
@@ -888,13 +953,13 @@ class InlineColorPicker(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(6)
 
-        self._sq = _SatValSquare(self._hue, self._sat, self._val, w=200, h=140)
-        self._sq.changed.connect(self._on_sv)
-        root.addWidget(self._sq)
-
         self._hue_sl = _HueSlider(self._hue)
         self._hue_sl.changed.connect(self._on_hue)
         root.addWidget(self._hue_sl)
+
+        self._sat_sl = _SatSlider(self._hue, self._sat)
+        self._sat_sl.changed.connect(self._on_sat)
+        root.addWidget(self._sat_sl)
 
         hl = QHBoxLayout()
         hl.setContentsMargins(0, 0, 0, 0)
@@ -921,9 +986,9 @@ class InlineColorPicker(QWidget):
         h, s, v, _ = c.getHsv()
         self._hue = max(0, h)
         self._sat, self._val = s, v
-        self._sq.set_hue(self._hue)
-        self._sq.set_sv(s, v)
         self._hue_sl.set_hue(self._hue)
+        self._sat_sl.set_hue(self._hue)
+        self._sat_sl.set_sat(s)
         self._refresh_display()
 
     def current_hex(self) -> str:
@@ -936,12 +1001,12 @@ class InlineColorPicker(QWidget):
 
     def _on_hue(self, hue: int) -> None:
         self._hue = hue
-        self._sq.set_hue(hue)
+        self._sat_sl.set_hue(hue)
         self._refresh_display()
         self.color_changed.emit(self.current_hex())
 
-    def _on_sv(self, sat: int, val: int) -> None:
-        self._sat, self._val = sat, val
+    def _on_sat(self, sat: int) -> None:
+        self._sat = sat
         self._refresh_display()
         self.color_changed.emit(self.current_hex())
 
@@ -952,9 +1017,9 @@ class InlineColorPicker(QWidget):
             if c.isValid():
                 h, s, v, _ = c.getHsv()
                 self._hue, self._sat, self._val = max(0, h), s, v
-                self._sq.set_hue(self._hue)
-                self._sq.set_sv(s, v)
                 self._hue_sl.set_hue(self._hue)
+                self._sat_sl.set_hue(self._hue)
+                self._sat_sl.set_sat(s)
                 self.color_changed.emit(t)
 
 
@@ -965,7 +1030,7 @@ class ColorPickerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Pick Color")
         self.setModal(True)
-        self.setFixedSize(250, 285)
+        self.setMinimumWidth(250)
         self.setStyleSheet("QDialog { background: #18181c; }")
 
         c = QColor(f"#{initial_hex}")
@@ -980,13 +1045,13 @@ class ColorPickerDialog(QDialog):
         root.setSpacing(8)
         root.setContentsMargins(14, 14, 14, 14)
 
-        self._sq = _SatValSquare(self._hue, self._sat, self._val)
-        self._sq.changed.connect(self._on_sv)
-        root.addWidget(self._sq)
-
         self._hue_sl = _HueSlider(self._hue)
         self._hue_sl.changed.connect(self._on_hue)
         root.addWidget(self._hue_sl)
+
+        self._sat_sl = _SatSlider(self._hue, self._sat)
+        self._sat_sl.changed.connect(self._on_sat)
+        root.addWidget(self._sat_sl)
 
         hl = QHBoxLayout()
         hl.setSpacing(8)
@@ -1048,11 +1113,11 @@ class ColorPickerDialog(QDialog):
 
     def _on_hue(self, hue: int):
         self._hue = hue
-        self._sq.set_hue(hue)
+        self._sat_sl.set_hue(hue)
         self._refresh()
 
-    def _on_sv(self, sat: int, val: int):
-        self._sat, self._val = sat, val
+    def _on_sat(self, sat: int):
+        self._sat = sat
         self._refresh()
 
     def _on_hex(self, text: str):
@@ -1062,9 +1127,9 @@ class ColorPickerDialog(QDialog):
             if c.isValid():
                 h, s, v, _ = c.getHsv()
                 self._hue, self._sat, self._val = max(0, h), s, v
-                self._sq.set_hue(self._hue)
-                self._sq.set_sv(s, v)
                 self._hue_sl.set_hue(self._hue)
+                self._sat_sl.set_hue(self._hue)
+                self._sat_sl.set_sat(s)
                 self._new_sw.setStyleSheet(
                     f"background:#{t};border-radius:4px;border:1px solid #333;"
                 )
