@@ -14,6 +14,51 @@ A modern, lightweight GUI replacement for HP OMEN Gaming Hub on Linux (Arch/Cach
 - 🌍 **Multilingual** — English, Русский, extensible
 - 📦 **Minimal** — PyQt6, no external daemons required
 
+## Screenshots
+
+<table>
+<tr>
+  <td><img src="screenshots/control-center-dark.png" width="420"/></td>
+  <td><img src="screenshots/control-center-light.png" width="420"/></td>
+</tr>
+<tr>
+  <td align="center"><sub>Control Center · Dark</sub></td>
+  <td align="center"><sub>Control Center · Light</sub></td>
+</tr>
+<tr>
+  <td><img src="screenshots/fan-curve-dark.png" width="420"/></td>
+  <td><img src="screenshots/fan-curve-light.png" width="420"/></td>
+</tr>
+<tr>
+  <td align="center"><sub>Fan Curve · Dark</sub></td>
+  <td align="center"><sub>Fan Curve · Light</sub></td>
+</tr>
+<tr>
+  <td><img src="screenshots/system-dark.png" width="420"/></td>
+  <td><img src="screenshots/system-light.png" width="420"/></td>
+</tr>
+<tr>
+  <td align="center"><sub>System · Dark</sub></td>
+  <td align="center"><sub>System · Light</sub></td>
+</tr>
+<tr>
+  <td><img src="screenshots/keyboard-dark.png" width="420"/></td>
+  <td><img src="screenshots/keyboard-light.png" width="420"/></td>
+</tr>
+<tr>
+  <td align="center"><sub>Keyboard · Dark</sub></td>
+  <td align="center"><sub>Keyboard · Light</sub></td>
+</tr>
+<tr>
+  <td><img src="screenshots/settings-dark.png" width="420"/></td>
+  <td><img src="screenshots/settings-light.png" width="420"/></td>
+</tr>
+<tr>
+  <td align="center"><sub>Settings · Dark</sub></td>
+  <td align="center"><sub>Settings · Light</sub></td>
+</tr>
+</table>
+
 ## Installation
 
 ### Arch / AUR (recommended)
