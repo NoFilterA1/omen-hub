@@ -15,7 +15,8 @@ from gui import theme
 from gui.i18n import t as _t
 from gui.widgets import FanCurveEditor
 
-CONFIG_PATH = Path(__file__).parent.parent.parent / "config.toml"
+_SYSTEM_CONFIG = Path(__file__).parent.parent.parent / "config.toml"
+_USER_CONFIG   = Path.home() / ".config" / "omen-hub" / "config.toml"
 
 _MODES = [("silent", "silent"), ("balanced", "balanced"), ("performance", "performance")]
 
@@ -30,7 +31,8 @@ def _load_curves() -> dict[str, dict]:
         }
     try:
         import tomlkit
-        doc = tomlkit.parse(CONFIG_PATH.read_text())
+        src = _USER_CONFIG if _USER_CONFIG.exists() else _SYSTEM_CONFIG
+        doc = tomlkit.parse(src.read_text())
         for name, vals in doc.get("fan", {}).get("modes", {}).items():
             if name in result and "temp_curve" in vals and "speed_curve" in vals:
                 result[name]["temp_curve"]  = list(vals["temp_curve"])
@@ -52,7 +54,8 @@ def _reload_daemon() -> None:
 def _save_curves(curves: dict[str, dict]) -> bool:
     try:
         import tomlkit
-        doc = tomlkit.parse(CONFIG_PATH.read_text())
+        src = _USER_CONFIG if _USER_CONFIG.exists() else _SYSTEM_CONFIG
+        doc = tomlkit.parse(src.read_text())
         for name, data in curves.items():
             sec = doc["fan"]["modes"][name]
             tc = tomlkit.array()
@@ -62,7 +65,8 @@ def _save_curves(curves: dict[str, dict]) -> bool:
             sec["temp_curve"]  = tc
             sec["speed_curve"] = sc
             sec["idle_speed"]  = data["idle_speed"]
-        CONFIG_PATH.write_text(tomlkit.dumps(doc))
+        _USER_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+        _USER_CONFIG.write_text(tomlkit.dumps(doc))
         return True
     except Exception:
         return False
